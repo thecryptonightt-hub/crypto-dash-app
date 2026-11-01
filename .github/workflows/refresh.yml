@@ -1,0 +1,41 @@
+# Crypto Dash — scheduled data refresh.
+# Runs the server-side refresh script (free GitHub Actions runner, no live
+# server cost), then commits the updated data.json back to this repo.
+# The public page reads data.json first, so buyers see full scored data
+# (including DefiLlama revenue) with no login. No secrets, no API keys:
+# CoinGecko and DefiLlama free endpoints only.
+name: Refresh Crypto Dash data
+
+on:
+  schedule:
+    - cron: "0 * * * *" # hourly, UTC
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Refresh data
+        run: node scripts/refresh-data.js
+      - name: Commit data.json if changed
+        run: |
+          git config user.name "crypto-dash-refresh"
+          git config user.email "crypto-dash-refresh@users.noreply.github.com"
+          git add data.json
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+          else
+            git commit -m "Refresh Crypto Dash data"
+            git push
+          fi
