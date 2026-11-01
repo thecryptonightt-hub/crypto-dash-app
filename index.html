@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crypto Dash</title>
+<meta name="description" content="Crypto Dash — a crypto investment intelligence dashboard. Research tool, not a trading bot, not financial advice.">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;overflow-x:hidden;background:#05070f;color:#eef2ff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+body{line-height:1.5}
+.wrap{max-width:480px;margin:0 auto;padding:14px 12px 48px;width:100%}
+header{text-align:center;padding:8px 0 4px}
+h1{margin:2px 0;font-size:26px;letter-spacing:.14em;text-transform:uppercase;color:#4ade80;text-shadow:0 0 12px rgba(74,222,128,.9),0 0 28px rgba(74,222,128,.45)}
+.sub{font-size:12px;color:#94a3b8;letter-spacing:.06em}
+.chip{display:inline-block;margin-top:6px;border:1px solid #22c55e;color:#4ade80;border-radius:999px;padding:2px 10px;font-size:11px;letter-spacing:.1em}
+.badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+.badge{font-size:10px;border:1px solid #1e293b;background:#0b1226;border-radius:999px;padding:3px 8px;color:#cbd5e1;white-space:nowrap}
+.btn{background:#22c55e;color:#04120a;border:0;border-radius:12px;padding:10px 14px;font-weight:800;cursor:pointer}
+.btn2{background:#1e293b;color:#eef2ff;border:1px solid #334155;border-radius:12px;padding:8px 10px;cursor:pointer}
+input,select{width:100%;background:#0b1226;color:#eef2ff;border:1px solid #334155;border-radius:12px;padding:10px;font-size:15px}
+.controls{display:grid;gap:8px;margin:12px 0}
+.pills{display:flex;gap:6px;overflow-x:auto;padding:2px 0;-webkit-overflow-scrolling:touch}
+.pill{flex:0 0 auto;background:#0b1226;border:1px solid #334155;color:#cbd5e1;border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer}
+.pill.on{background:#22c55e;color:#04120a;border-color:#22c55e;font-weight:700}
+.card{background:#0b1226;border:1px solid #1e293b;border-radius:16px;padding:14px;margin:12px 0}
+.gold{border:2px solid #facc15!important;background:linear-gradient(180deg,#1a1605,#0b1226)!important;box-shadow:0 0 24px rgba(250,204,21,.35)}
+.row{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #1e293b;cursor:pointer;min-width:0}
+.row:last-child{border-bottom:0}
+.rank{width:26px;text-align:center;font-weight:800;flex:0 0 auto}
+.logo{width:36px;height:36px;border-radius:50%;flex:0 0 auto;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;overflow:hidden}
+.logo img{width:100%;height:100%;object-fit:cover}
+.main{flex:1;min-width:0}
+.main b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.main span{font-size:12px;color:#94a3b8}
+.score{text-align:right;flex:0 0 auto}
+.score b{font-size:20px}
+.ring{width:52px;height:52px;flex:0 0 auto}
+.bars{display:flex;gap:3px;margin-top:6px}
+.bar{flex:1;height:5px;background:#1e293b;border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:#22c55e}
+.tag{display:inline-block;background:#1e293b;border-radius:999px;padding:1px 7px;font-size:10px;margin:2px 2px 0 0}
+.tag.goldtag{background:#facc15;color:#111}
+.muted{color:#94a3b8;font-size:13px}
+.small{font-size:12px;color:#94a3b8}
+h2{font-size:19px;margin:6px 0}
+h3{font-size:16px;margin:10px 0 4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{text-align:left;padding:7px 4px;border-bottom:1px solid #1e293b;vertical-align:top}
+.star{font-size:20px;background:none;border:0;color:#facc15;cursor:pointer;padding:4px}
+a{color:#4ade80;word-break:break-word}
+.err{background:#3f1d1d;border:1px solid #7f1d1d;border-radius:12px;padding:10px;margin:10px 0;font-size:13px}
+.note{background:#0b1226;border:1px solid #334155;border-radius:12px;padding:10px;margin:10px 0;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>Crypto Dash</h1>
+<div class="sub">Ranked by fundamental score</div>
+<div><span class="chip">ARCADE MODE</span></div>
+<div class="badges">
+<span class="badge">REDDIT PULSE LIVE</span>
+<span class="badge">X BUZZ LINKED</span>
+<span class="badge" id="assetCount">— assets</span>
+</div>
+</header>
+
+<div class="controls">
+<button class="btn" id="refreshBtn" type="button">↻ Refresh — update all numbers</button>
+<div id="status" class="small">Loading live data from CoinGecko and DefiLlama…</div>
+<div id="errorBox"></div>
+<input id="search" type="search" placeholder="Search by name or ticker…" aria-label="Search coins">
+<select id="mcapFilter" aria-label="Market cap filter">
+<option value="all">Market cap: All</option>
+<option value="large">Large: over $1B</option>
+<option value="mid">Mid: $100M – $1B</option>
+<option value="small">Small: under $100M</option>
+</select>
+<div class="pills" id="sectorPills"></div>
+</div>
+
+<section class="card" id="top10Card">
+<h2>Top 10 Elite</h2>
+<div id="champion"></div>
+<div id="top10"></div>
+<div class="small" id="top10Note"></div>
+</section>
+
+<section class="card">
+<h2>Discover</h2>
+<div id="discover"></div>
+<div class="small" id="discoverNote"></div>
+</section>
+
+<section class="card" id="detailCard" hidden>
+<h2 id="detailTitle">Detail</h2>
+<div id="detailBody"></div>
+</section>
+
+<section class="card">
+<h2>Compare</h2>
+<p class="small">Tap ★ on tokens to add them to Compare, then tap a token to view it. Compare shows the first 4 starred tokens.</p>
+<div id="compareBody" class="small">No tokens starred yet.</div>
+</section>
+
+<section class="card">
+<h2>Watchlist</h2>
+<p class="small">Saved only in this browser, on this device. No account, no login.</p>
+<div id="watchlistBody" class="small">No watchlist tokens yet. Tap ★ on a token to save it.</div>
+</section>
+
+<section class="card">
+<h2>Daily Report</h2>
+<p class="small">Computed from the current data only. Improving / declining over time needs score history from repeated visits.</p>
+<div id="reportBody" class="small"></div>
+</section>
+
+<section class="card">
+<h2>Social</h2>
+<p class="small"><b>X posts are linked, not pulled,</b> because X has no free post feed. Links below go to the live X profile and discussion. No tweets are invented here.</p>
+<div id="redditBody" class="small">Loading Reddit posts…</div>
+<div class="note" id="xBody"></div>
+</section>
+
+<footer class="card">
+<p class="small"><b>Research tool only.</b> Crypto Dash is not a trading bot, not financial advice, and not a guarantee of returns. Scores are capped when reliable data is unavailable. Catalysts, audits, and unlock calendars stay UNKNOWN when the free feeds do not carry them. Sources: CoinGecko, DefiLlama, Reddit, and X links. Data points are dated at refresh time.</p>
+<p class="small" id="updatedAt"></p>
+</footer>
+</div>
+<script>
+"use strict";
+/* Scoring weights — exact, sum = 100. Do not change. */
+var WEIGHTS = {revenue:15, valueAccrual:15, adoption:10, product:10, flywheel:10, tokenomics:10, valuation:10, catalysts:5, moat:5, security:5, risk:5};
+var SECTORS = ["All","AI","DeFi","Layer 1","Layer 2","RWA","DePIN","Infrastructure","Privacy","Gaming","DEX","Tokenization"];
+/* Stablecoins and centralized exchange tokens — excluded entirely. */
+var EXCLUDED_IDS = ["tether","usd-coin","dai","ethena-usde","first-digital-usd","paypal-usd","ripple-usd","binancecoin","okb","cronos","leo-token","kucoin-shares","bitget-token","gatechain-token","whitebit","huobi-token","nexo","true-usd","pax-dollar","frax","liquity-usd","tether-gold","pax-gold","gho","usdd","susd","aeur","xaut"];
+var EXCLUDED_SYMS = ["usdt","usdc","dai","usde","fdusd","pyusd","rlusd","tusd","usdp","frax","lusd","usdd","susd","xaut","paxg","gho","aeur","bnb","okb","cro","leo","kcs","bgb","wbt","ht","htx","nexo"];
+var SECTOR_MAP = {bitcoin:"Layer 1",ethereum:"Layer 1",solana:"Layer 1",tron:"Layer 1",cardano:"Layer 1",avalanche:"Layer 1",polkadot:"Layer 1",cosmos:"Layer 1",near:"Layer 1",sui:"Layer 1",aptos:"Layer 1",uniswap:"DEX",hyperliquid:"DEX",jupiter:"DEX",lido:"DeFi",aave:"DeFi",chainlink:"Infrastructure",filecoin:"DePIN",render:"DePIN","the-graph":"AI",fetch:"AI",worldcoin:"AI",injective:"DeFi",arbitrum:"Layer 2",optimism:"Layer 2",polygon:"Layer 2",starknet:"Layer 2",monero:"Privacy",zcash:"Privacy","axie-infinity":"Gaming","immutable-x":"Gaming",ondo:"RWA",maker:"DeFi","lido-dao":"DeFi"};
+var state = {coins:[], filtered:[], sector:"All", query:"", mcap:"all", selected:null, watchlist:[]};
+try{ state.watchlist = JSON.parse(localStorage.getItem("crypto-dash-watchlist")||"[]"); }catch(e){ state.watchlist=[]; }
+function saveWatch(){ try{ localStorage.setItem("crypto-dash-watchlist", JSON.stringify(state.watchlist)); }catch(e){} }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function fmtUsd(n){ if(n==null||isNaN(n)) return "UNKNOWN"; if(n>=1e9) return "$"+(n/1e9).toFixed(2)+"B"; if(n>=1e6) return "$"+(n/1e6).toFixed(1)+"M"; if(n>=1e3) return "$"+(n/1e3).toFixed(1)+"K"; return "$"+Number(n).toFixed(2); }
+function clamp(x,a,b){ return Math.max(a,Math.min(b,x)); }
+/* Criteria-audited fallback scoring, used ONLY if data.json is missing.
+   Same rules as scripts/refresh-data.js: UNKNOWN = 0 (capped, not rescaled).
+   No flat placeholders: catalysts, moat, and security are UNKNOWN because
+   the free feeds carry no data for them; product is 6 only on a categorised
+   live DefiLlama protocol; value accrual is capped at 6 on revenue alone,
+   12 only for Lighter documented buybacks. Browser fallback has no revenue
+   feed, so revenue, value accrual, and flywheel are UNKNOWN there — the
+   scheduled data.json is the primary source, and fallback scores will
+   therefore be lower and capped. No score is copied from any earlier version. */
+var VALUE_ACCRUAL_KNOWN = {lighter:12};
+function volTier(v){ if(v==null) return null; if(v>=1e10) return 5; if(v>=1e9) return 4; if(v>=1e8) return 3; if(v>=1e7) return 2; if(v>0) return 1; return null; }
+function tvlTier(t){ if(t==null) return null; if(t>=1e9) return 5; if(t>=1e8) return 4; if(t>=1e7) return 3; if(t>=1e6) return 2; if(t>0) return 1; return null; }
+function scoreCoin(c, tvl){
+  var f = {};
+  f.revenue = tvl!=null && tvl.revenue24h!=null ? clamp(Math.round(15*Math.min(1, Math.log10(1+tvl.revenue24h)/6)),1,15) : null;
+  f.valueAccrual = VALUE_ACCRUAL_KNOWN[c.id]!=null ? VALUE_ACCRUAL_KNOWN[c.id] : (f.revenue!=null ? 6 : null);
+  var vt = volTier(c.total_volume!=null ? c.total_volume : null);
+  var tt = tvl!=null ? tvlTier(tvl.tvl) : null;
+  f.adoption = (vt==null && tt==null) ? null : Math.min(10, (vt||0)+(tt||0));
+  f.product = (tvl!=null && tvl.category) ? 6 : null;
+  f.flywheel = (f.revenue!=null && (c.total_volume>0 || (tvl!=null && tvl.tvl>0))) ? 6 : null;
+  f.tokenomics = (c.circulating_supply!=null && c.total_supply!=null && c.total_supply>0) ? clamp(Math.round(10*(c.circulating_supply/c.total_supply)),1,10) : null;
+  if(c.market_cap!=null && c.fully_diluted_valuation!=null && c.fully_diluted_valuation>0){
+    var r = c.fully_diluted_valuation/c.market_cap;
+    f.valuation = r<=1.1 ? 6 : r<=2 ? 4 : r<=5 ? 2 : 1;
+  } else { f.valuation = null; }
+  f.catalysts = null; f.moat = null; f.security = null;
+  if(c.market_cap!=null && c.fully_diluted_valuation!=null && c.market_cap>0){
+    var rr = c.fully_diluted_valuation/c.market_cap;
+    f.risk = rr<=1.5 ? 5 : rr<=3 ? 4 : 3;
+  } else { f.risk = null; }
+  var total = 0, known = 0;
+  Object.keys(WEIGHTS).forEach(function(k){ if(f[k]!=null){ total+=f[k]; known++; } });
+  var evidence = known/11;
+  return {factors:f, score:total, evidence:evidence, known:known};
+}
+function badgesFor(c, s){
+  var b=[];
+  if(s.score>=80) b.push("ELITE"); else if(s.score>=70) b.push("STRONG");
+  if(s.factors.revenue!=null && s.factors.revenue>=10) b.push("REVENUE ENGINE");
+  if(s.factors.valuation!=null && s.factors.valuation>=8) b.push("UNDERVALUED");
+  if(c.price_change_percentage_24h!=null && c.price_change_percentage_24h>10) b.push("HOT");
+  if(s.factors.flywheel!=null && s.factors.flywheel>=7) b.push("HIGH TVL");
+  return b;
+}
+function band(score){ if(score>=90) return "Exceptional"; if(score>=80) return "Strong"; if(score>=70) return "Promising"; if(score>=60) return "Moderate"; return "Weak or speculative"; }
+function ring(score){
+  var r=22, circ=2*Math.PI*r, off=circ*(1-score/100);
+  return '<svg class="ring" viewBox="0 0 56 56" aria-label="Score '+score+'"><circle cx="28" cy="28" r="'+r+'" fill="none" stroke="#1e293b" stroke-width="6"/><circle cx="28" cy="28" r="'+r+'" fill="none" stroke="#facc15" stroke-width="6" stroke-linecap="round" stroke-dasharray="'+circ.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 28 28)"/><text x="28" y="32" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">'+score+'</text></svg>';
+}
+function logoHtml(c){
+  var t = (c.symbol||"?").toUpperCase().slice(0,4);
+  return '<span class="logo">'+(c.image ? '<img src="'+esc(c.image)+'" alt="" onerror="this.remove()">' : '')+t+'</span>';
+}
+function factorBars(s){
+  var keys=["revenue","valueAccrual","adoption","product","flywheel","tokenomics","valuation","catalysts","moat","security","risk"];
+  return '<div class="bars">'+keys.map(function(k){ var v=s.factors[k]; var w=WEIGHTS[k]; var pct=v==null?0:Math.round(100*v/w); return '<span class="bar"><i style="width:'+pct+'%"></i></span>'; }).join("")+'</div>';
+}
+function rowHtml(c, i){
+  var s=c._score, star = state.watchlist.indexOf(c.id)>=0 ? "★" : "☆";
+  return '<div class="row" data-id="'+esc(c.id)+'"><span class="rank">'+(i+1)+'</span>'+logoHtml(c)+'<div class="main"><b>'+esc(c.name)+' <span>'+esc(c.symbol.toUpperCase())+'</span></b><span>'+fmtUsd(c.market_cap)+' · '+(c.price_change_percentage_24h==null?"—":c.price_change_percentage_24h.toFixed(1)+"% 24h")+'</span>'+factorBars(s)+'<div>'+badgesFor(c,s).map(function(x){return '<span class="tag">'+x+'</span>';}).join("")+'</div></div><div class="score">'+ring(s.score)+'</div><button class="star" type="button" data-star="'+esc(c.id)+'" aria-label="Toggle watchlist">'+star+'</button></div>';
+}
+function applyFilters(){
+  state.filtered = state.coins.filter(function(c){
+    if(state.query && (c.name+" "+c.symbol).toLowerCase().indexOf(state.query)<0) return false;
+    if(state.sector!=="All" && (SECTOR_MAP[c.id]||"Other")!==state.sector) return false;
+    if(state.mcap==="large" && !(c.market_cap>1e9)) return false;
+    if(state.mcap==="mid" && !(c.market_cap>=1e8 && c.market_cap<=1e9)) return false;
+    if(state.mcap==="small" && !(c.market_cap<1e8)) return false;
+    return true;
+  });
+}
+function render(){
+  applyFilters();
+  document.getElementById("assetCount").textContent = state.coins.length+" assets";
+  var top = state.coins.slice(0,10);
+  var champ = top[0];
+  if(champ){
+    document.getElementById("champion").innerHTML = '<div class="card gold"><div>👑 #1 CHAMPION</div><div style="display:flex;gap:10px;align-items:center">'+logoHtml(champ)+'<div class="main"><b>'+esc(champ.name)+' '+esc(champ.symbol.toUpperCase())+'</b><span>'+band(champ._score.score)+' · '+fmtUsd(champ.market_cap)+'</span></div>'+ring(champ._score.score)+'</div>'+factorBars(champ._score)+'<div>'+badgesFor(champ,champ._score).map(function(x){return '<span class="tag goldtag">'+x+'</span>';}).join("")+'</div><div class="small" style="margin-top:8px">Tap any token for its full 11-factor breakdown.</div></div>';
+    document.getElementById("top10").innerHTML = top.slice(1).map(function(c,i){ return rowHtml(c,i+1); }).join("");
+  } else {
+    document.getElementById("champion").innerHTML = '<p class="small">No tokens loaded yet. Tap Refresh.</p>';
+    document.getElementById("top10").innerHTML = "";
+  }
+  document.getElementById("top10Note").textContent = "Top 10 ranked by fundamental score. Evidence coverage caps scores where data is UNKNOWN.";
+  document.getElementById("discover").innerHTML = state.filtered.slice(0,50).map(function(c,i){ return rowHtml(c,i); }).join("") || '<p class="small">No matches. Try a different search or filter.</p>';
+  document.getElementById("discoverNote").textContent = "Showing "+Math.min(50,state.filtered.length)+" of "+state.filtered.length+" matching tokens.";
+  renderWatch(); renderCompare();
+  document.querySelectorAll("[data-id]").forEach(function(el){ el.addEventListener("click", function(ev){ if(ev.target.closest("[data-star]")) return; showDetail(el.getAttribute("data-id")); }); });
+  document.querySelectorAll("[data-star]").forEach(function(btn){ btn.addEventListener("click", function(ev){ ev.stopPropagation(); toggleStar(btn.getAttribute("data-star")); }); });
+  renderReport();
+}
+function renderWatch(){
+  var list = state.coins.filter(function(c){ return state.watchlist.indexOf(c.id)>=0; });
+  document.getElementById("watchlistBody").innerHTML = list.length ? list.map(function(c,i){ return rowHtml(c,i); }).join("") : "No watchlist tokens yet. Tap ★ on a token to save it.";
+}
+function renderCompare(){
+  var list = state.coins.filter(function(c){ return state.watchlist.indexOf(c.id)>=0; }).slice(0,4);
+  if(!list.length){ document.getElementById("compareBody").innerHTML="No tokens starred yet."; return; }
+  var rows = '<table><tr><th>Token</th><th>Score</th><th>Price</th><th>Market cap</th><th>FDV</th></tr>' + list.map(function(c){ return '<tr><td>'+esc(c.name)+'</td><td>'+c._score.score+'</td><td>'+(c.current_price==null?"UNKNOWN":"$"+c.current_price)+'</td><td>'+fmtUsd(c.market_cap)+'</td><td>'+fmtUsd(c.fully_diluted_valuation)+'</td></tr>'; }).join("") + '</table>';
+  document.getElementById("compareBody").innerHTML = rows;
+}
+function renderReport(){
+  if(!state.coins.length){ document.getElementById("reportBody").innerHTML="No data yet."; return; }
+  var best = state.coins[0];
+  var under = state.coins.slice().sort(function(a,b){ return (b._score.factors.valuation||0)-(a._score.factors.valuation||0); })[0];
+  var risky = state.coins.filter(function(c){ return c.fully_diluted_valuation && c.market_cap && c.fully_diluted_valuation/c.market_cap>5; }).slice(0,3);
+  document.getElementById("reportBody").innerHTML =
+    '<p><b>Best fundamental opportunity:</b> '+esc(best.name)+' — score '+best._score.score+' ('+band(best._score.score)+'), market cap '+fmtUsd(best.market_cap)+'.</p>'+
+    '<p><b>Most attractive valuation:</b> '+esc(under.name)+' — valuation factor '+(under._score.factors.valuation==null?"UNKNOWN":under._score.factors.valuation+"/10")+'.</p>'+
+    '<p><b>Significant risks to note:</b> '+(risky.length? risky.map(function(c){return esc(c.name)+' (FDV well above market cap)';}).join("; ") : "None flagged in the current Top list by FDV/market-cap alone.")+'</p>'+
+    '<p class="small">Catalysts, audits, and unlock calendars are UNKNOWN unless a free feed carries them. This report is computed from current data only.</p>';
+}
+function showDetail(id){
+  var c = state.coins.filter(function(x){ return x.id===id; })[0]; if(!c) return;
+  state.selected=id;
+  var s=c._score;
+  var labels={revenue:"Revenue",valueAccrual:"Token utility + value accrual",adoption:"Adoption",product:"Product utility",flywheel:"Flywheel",tokenomics:"Tokenomics / unlocks",valuation:"Valuation",catalysts:"Catalysts",moat:"Competitive advantage",security:"Security and team",risk:"Risk management"};
+  var rows = Object.keys(WEIGHTS).map(function(k){ return '<tr><td>'+labels[k]+'</td><td>'+(s.factors[k]==null?"UNKNOWN":s.factors[k]+"/"+WEIGHTS[k])+'</td></tr>'; }).join("");
+  document.getElementById("detailTitle").textContent = c.name+" ("+c.symbol.toUpperCase()+") — "+s.score+"/100 · "+band(s.score);
+  document.getElementById("detailBody").innerHTML = '<div style="display:flex;gap:10px;align-items:center">'+logoHtml(c)+ring(s.score)+'<div><b>Price:</b> '+(c.current_price==null?"UNKNOWN":"$"+c.current_price)+'<br><b>Market cap:</b> '+fmtUsd(c.market_cap)+'<br><b>FDV:</b> '+fmtUsd(c.fully_diluted_valuation)+'<br><b>Sector:</b> '+(SECTOR_MAP[c.id]||"Other")+'<br><b>Evidence:</b> '+s.known+'/11 factors known; UNKNOWN factors cap the score.</div></div><table style="margin-top:10px">'+rows+'</table><div style="margin-top:10px">'+badgesFor(c,s).map(function(x){return '<span class="tag">'+x+'</span>';}).join("")+'</div><p class="small">X: <a href="https://x.com/search?q=%24'+encodeURIComponent(c.symbol.toUpperCase())+'" target="_blank" rel="noopener">Live $'+esc(c.symbol.toUpperCase())+' discussion on X (linked, not pulled)</a> · Reddit: <a href="https://www.reddit.com/search/?q='+encodeURIComponent(c.name)+'" target="_blank" rel="noopener">Search Reddit for '+esc(c.name)+'</a></p>';
+  document.getElementById("detailCard").hidden=false;
+  document.getElementById("detailCard").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function toggleStar(id){
+  var i=state.watchlist.indexOf(id);
+  if(i>=0) state.watchlist.splice(i,1); else state.watchlist.push(id);
+  saveWatch(); render();
+}
+function renderPills(){
+  document.getElementById("sectorPills").innerHTML = SECTORS.map(function(s){ return '<button type="button" class="pill'+(state.sector===s?" on":"")+'" data-sector="'+esc(s)+'">'+esc(s)+'</button>'; }).join("");
+  document.querySelectorAll("[data-sector]").forEach(function(b){ b.addEventListener("click", function(){ state.sector=b.getAttribute("data-sector"); renderPills(); render(); }); });
+}
+async function loadReddit(){
+  try{
+    var r = await fetch("https://www.reddit.com/r/CryptoCurrency/top.json?limit=5&t=day");
+    if(!r.ok) throw new Error("Reddit unavailable");
+    var j = await r.json();
+    var posts = (j.data&&j.data.children||[]).map(function(p){ return p.data; });
+    if(!posts.length) throw new Error("No posts");
+    document.getElementById("redditBody").innerHTML = '<p><b>Reddit — r/CryptoCurrency, top today</b></p>' + posts.map(function(p){ return '<p>↑ '+(p.score==null?"":p.score)+' · <a href="https://www.reddit.com'+esc(p.permalink)+'" target="_blank" rel="noopener">'+esc(p.title)+'</a> <span class="small">by u/'+esc(p.author)+'</span></p>'; }).join("");
+  }catch(e){
+    document.getElementById("redditBody").innerHTML = '<p>Reddit feed unavailable right now. Tap Refresh to try again. No posts are invented here.</p>';
+  }
+  document.getElementById("xBody").innerHTML = '<p><b>X Buzz — linked only.</b> X has no free post feed, so no tweets are pulled or shown here. Use the links in a token detail view to open the live X profile and discussion.</p><p><a href="https://x.com/search?q=crypto" target="_blank" rel="noopener">Open live crypto discussion on X →</a></p>';
+}
+/* Scheduled data first: data.json is written hourly by GitHub Actions
+   (a server-side runner), with full CoinGecko + DefiLlama data including
+   protocol revenue. The page reads it first; live browser fetches are only
+   a fallback if data.json is missing, and will show lower capped scores
+   because browser-only DefiLlama data has no revenue field. */
+async function loadFromDataJson(){
+  var url = "data.json" + (window.location.protocol === "file:" ? "" : "?t=" + Date.now());
+  var r = await fetch(url, {cache:"no-store"});
+  if(!r.ok) throw new Error("No scheduled data yet");
+  var d = await r.json();
+  if(!d.assets || !d.assets.length) throw new Error("Scheduled data is empty");
+  state.coins = d.assets.map(function(a){
+    a._score = a.score; a._tvl = a.tvl;
+    if(a.sector && a.sector !== "Other") SECTOR_MAP[a.id] = a.sector;
+    return a;
+  });
+  state.coins.sort(function(x,y){ return y._score.score - x._score.score; });
+  document.getElementById("status").textContent = "Data from scheduled refresh.";
+  document.getElementById("updatedAt").textContent = "Last refreshed: " + (d.generatedAt ? new Date(d.generatedAt).toLocaleString() : "unknown") + " · Sources: CoinGecko, DefiLlama, Reddit, X links.";
+  render(); loadReddit();
+  return true;
+}
+async function refresh(){
+  document.getElementById("status").textContent="Refreshing data…";
+  document.getElementById("errorBox").innerHTML="";
+  try{ await loadFromDataJson(); return; }catch(e){ /* fall through to live browser fetch */ }
+  document.getElementById("status").textContent="Scheduled data not available — trying live browser data…";
+  await liveRefresh();
+}
+async function liveRefresh(){
+  try{
+    var cg = await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h");
+    if(!cg.ok) throw new Error("CoinGecko returned "+cg.status+". Please try Refresh again shortly.");
+    var coins = await cg.json();
+    var dl = null;
+    try{
+      var dr = await fetch("https://api.defillama.com/protocols");
+      if(dr.ok) dl = await dr.json();
+    }catch(e){ dl=null; }
+    var bySym = {};
+    if(Array.isArray(dl)){
+      dl.forEach(function(p){
+        var k=(p.symbol||"").toLowerCase();
+        if(k && !bySym[k]) bySym[k]={tvl:p.tvl||null, revenue24h:null, name:p.name||""};
+      });
+    }
+    var now = new Date();
+    var scored = [];
+    coins.forEach(function(c){
+      var sym=(c.symbol||"").toLowerCase();
+      if(EXCLUDED_IDS.indexOf(c.id)>=0 || EXCLUDED_SYMS.indexOf(sym)>=0) return;
+      if(c.id==="tether" || sym==="usdt") return;
+      var tvl = bySym[sym]||null;
+      /* Match by symbol is approximate for DefiLlama; TVL is shown only when a symbol match exists. */
+      c._score = scoreCoin(c, tvl);
+      c._tvl = tvl ? tvl.tvl : null;
+      scored.push(c);
+    });
+    scored.sort(function(a,b){ return b._score.score-a._score.score; });
+    state.coins = scored;
+    document.getElementById("status").textContent = "Live data updated.";
+    document.getElementById("updatedAt").textContent = "Last refreshed: "+now.toLocaleString()+" · Sources: CoinGecko, DefiLlama, Reddit, X links.";
+    render(); loadReddit();
+  }catch(e){
+    document.getElementById("errorBox").innerHTML='<div class="err">'+esc(e.message||"Refresh failed. Please try again.")+'</div>';
+    document.getElementById("status").textContent="Refresh failed — previous data (if any) is still shown.";
+  }
+}
+document.getElementById("refreshBtn").addEventListener("click", refresh);
+document.getElementById("search").addEventListener("input", function(e){ state.query=e.target.value.trim().toLowerCase(); render(); });
+document.getElementById("mcapFilter").addEventListener("change", function(e){ state.mcap=e.target.value; render(); });
+renderPills();
+refresh();
+</script>
+</body>
+</html>
