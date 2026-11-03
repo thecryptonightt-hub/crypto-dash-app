@@ -80,6 +80,13 @@ a{color:#4ade80;word-break:break-word}
 <div class="pills" id="sectorPills"></div>
 </div>
 
+<section class="card">
+<h2>5-question framework check — on top of the 11 factors</h2>
+<p class="small">Every token is also checked against 5 plain questions, built from the same 11-factor evidence — nothing is removed, and the factors this framework does not cover (adoption, competitive advantage, security and team, risk) stay in the score. Tap any token for its framework check.</p>
+<p class="small"><b>1. Real revenue?</b> Real fees from real users, over at least 30 days. &nbsp;<b>2. Does revenue reach the token?</b> Buybacks, burns, or fee distributions. &nbsp;<b>3. Real utility and flywheel?</b> Holding it gives real exposure and value grows with use. &nbsp;<b>4. Supply unlocks?</b> Emissions, unlock dates, and fully diluted value versus market cap. &nbsp;<b>5. A dated catalyst?</b> A launch, partnership, listing, license, or integration with an actual date. Dated catalysts stay UNKNOWN when the free feeds do not carry them — never guessed.</p>
+<p class="small">Winners usually fall into two buckets: <b>cash-flow projects</b> you can value like a company, and <b>game-changing technology</b> that solves a problem nothing else solves.</p>
+</section>
+
 <section class="card" id="top10Card">
 <h2>Top 10 Elite</h2>
 <div id="champion"></div>
@@ -179,6 +186,42 @@ function scoreCoin(c, tvl){
   var evidence = known/11;
   return {factors:f, score:total, evidence:evidence, known:known};
 }
+
+function frameworkFor(s){
+  function statusFor(v, w){
+    if(v==null) return "UNKNOWN";
+    var pct = v/w;
+    if(pct>=0.6) return "PASS";
+    if(pct>0) return "CHECK";
+    return "UNKNOWN";
+  }
+  function avgStatus(pairs){
+    var known = pairs.filter(function(x){ return x[0]!=null; });
+    if(known.length===0) return "UNKNOWN";
+    var pct = known.reduce(function(a,x){ return a + x[0]/x[1]; }, 0) / known.length;
+    return pct>=0.6 ? "PASS" : "CHECK";
+  }
+  var f = s.factors;
+  var q = [];
+  q.push({n:"1. Real revenue?", s:statusFor(f.revenue, 15), note:"From the Revenue factor (real fees, 30+ days where available)."});
+  q.push({n:"2. Does revenue reach the token?", s:statusFor(f.valueAccrual, 15), note:"From Token utility + value accrual (buybacks, burns, fee distributions). Capped at 6 on revenue alone unless buybacks are documented."});
+  q.push({n:"3. Real utility and flywheel?", s:avgStatus([[f.product,10],[f.flywheel,10]]), note:"From Product utility + Flywheel."});
+  q.push({n:"4. Supply unlocks?", s:avgStatus([[f.tokenomics,10],[f.valuation,10]]), note:"From Tokenomics / unlocks + Valuation (FDV vs market cap)."});
+  q.push({n:"5. A dated catalyst?", s:statusFor(f.catalysts, 5), note:"From the Catalysts factor. Stays UNKNOWN when free feeds do not carry a dated catalyst — never guessed."});
+  var passed = q.filter(function(x){ return x.s==="PASS"; }).length;
+  var bucket = "Neither bucket yet — not enough verified evidence.";
+  if(q[0].s==="PASS" && q[1].s==="PASS") bucket = "Cash-flow bucket: revenue reaches holders, valued like a company.";
+  if(f.product!=null && (f.adoption||0)>=6) bucket = bucket==="Neither bucket yet — not enough verified evidence." ? "Game-changing technology bucket: real product with real adoption." : bucket + " Also fits the game-changing technology bucket.";
+  return {questions:q, passed:passed, bucket:bucket};
+}
+function frameworkHtml(s){
+  var fw = frameworkFor(s);
+  var rows = fw.questions.map(function(x){
+    var mark = x.s==="PASS" ? "✅ PASS" : x.s==="CHECK" ? "⚠️ CHECK" : "❓ UNKNOWN";
+    return '<tr><td><b>'+esc(x.n)+'</b><br><span class="small">'+esc(x.note)+'</span></td><td>'+mark+'</td></tr>';
+  }).join("");
+  return '<h3 style="margin-top:16px">5-question framework check — '+fw.passed+'/5 passing</h3><table>'+rows+'</table><p class="small"><b>Bucket:</b> '+esc(fw.bucket)+'</p><p class="small">The 11-factor score above is unchanged. Factors this framework does not cover — adoption, competitive advantage, security and team, risk — stay in the score.</p>';
+}
 function badgesFor(c, s){
   var b=[];
   if(s.score>=80) b.push("ELITE"); else if(s.score>=70) b.push("STRONG");
@@ -263,7 +306,7 @@ function showDetail(id){
   var labels={revenue:"Revenue",valueAccrual:"Token utility + value accrual",adoption:"Adoption",product:"Product utility",flywheel:"Flywheel",tokenomics:"Tokenomics / unlocks",valuation:"Valuation",catalysts:"Catalysts",moat:"Competitive advantage",security:"Security and team",risk:"Risk management"};
   var rows = Object.keys(WEIGHTS).map(function(k){ return '<tr><td>'+labels[k]+'</td><td>'+(s.factors[k]==null?"UNKNOWN":s.factors[k]+"/"+WEIGHTS[k])+'</td></tr>'; }).join("");
   document.getElementById("detailTitle").textContent = c.name+" ("+c.symbol.toUpperCase()+") — "+s.score+"/100 · "+band(s.score);
-  document.getElementById("detailBody").innerHTML = '<div style="display:flex;gap:10px;align-items:center">'+logoHtml(c)+ring(s.score)+'<div><b>Price:</b> '+(c.current_price==null?"UNKNOWN":"$"+c.current_price)+'<br><b>Market cap:</b> '+fmtUsd(c.market_cap)+'<br><b>FDV:</b> '+fmtUsd(c.fully_diluted_valuation)+'<br><b>Sector:</b> '+(SECTOR_MAP[c.id]||"Other")+'<br><b>Evidence:</b> '+s.known+'/11 factors known; UNKNOWN factors cap the score.</div></div><table style="margin-top:10px">'+rows+'</table><div style="margin-top:10px">'+badgesFor(c,s).map(function(x){return '<span class="tag">'+x+'</span>';}).join("")+'</div><p class="small">X: <a href="https://x.com/search?q=%24'+encodeURIComponent(c.symbol.toUpperCase())+'" target="_blank" rel="noopener">Live $'+esc(c.symbol.toUpperCase())+' discussion on X (linked, not pulled)</a> · Reddit: <a href="https://www.reddit.com/search/?q='+encodeURIComponent(c.name)+'" target="_blank" rel="noopener">Search Reddit for '+esc(c.name)+'</a></p>';
+  document.getElementById("detailBody").innerHTML = '<div style="display:flex;gap:10px;align-items:center">'+logoHtml(c)+ring(s.score)+'<div><b>Price:</b> '+(c.current_price==null?"UNKNOWN":"$"+c.current_price)+'<br><b>Market cap:</b> '+fmtUsd(c.market_cap)+'<br><b>FDV:</b> '+fmtUsd(c.fully_diluted_valuation)+'<br><b>Sector:</b> '+(SECTOR_MAP[c.id]||"Other")+'<br><b>Evidence:</b> '+s.known+'/11 factors known; UNKNOWN factors cap the score.</div></div><table style="margin-top:10px">'+rows+'</table>+frameworkHtml(s)<div style="margin-top:10px">'+badgesFor(c,s).map(function(x){return '<span class="tag">'+x+'</span>';}).join("")+'</div><p class="small">X: <a href="https://x.com/search?q=%24'+encodeURIComponent(c.symbol.toUpperCase())+'" target="_blank" rel="noopener">Live $'+esc(c.symbol.toUpperCase())+' discussion on X (linked, not pulled)</a> · Reddit: <a href="https://www.reddit.com/search/?q='+encodeURIComponent(c.name)+'" target="_blank" rel="noopener">Search Reddit for '+esc(c.name)+'</a></p>';
   document.getElementById("detailCard").hidden=false;
   document.getElementById("detailCard").scrollIntoView({behavior:"smooth",block:"start"});
 }
