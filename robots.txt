@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://thecryptonightt-hub.github.io/crypto-dash-app/sitemap.xml
