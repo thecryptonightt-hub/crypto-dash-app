@@ -141,52 +141,19 @@ a{color:#4ade80;word-break:break-word}
 /* Scoring weights — exact, sum = 100. Do not change. */
 var WEIGHTS = {revenue:15, valueAccrual:15, adoption:10, product:10, flywheel:10, tokenomics:10, valuation:10, catalysts:5, moat:5, security:5, risk:5};
 var SECTORS = ["All","AI","DeFi","Layer 1","Layer 2","RWA","DePIN","Infrastructure","Privacy","Gaming","DEX","Tokenization"];
-/* Stablecoins and centralized exchange tokens — excluded entirely. */
-var EXCLUDED_IDS = ["tether","usd-coin","dai","ethena-usde","first-digital-usd","paypal-usd","ripple-usd","binancecoin","okb","cronos","leo-token","kucoin-shares","bitget-token","gatechain-token","whitebit","huobi-token","nexo","true-usd","pax-dollar","frax","liquity-usd","tether-gold","pax-gold","gho","usdd","susd","aeur","xaut"];
-var EXCLUDED_SYMS = ["usdt","usdc","dai","usde","fdusd","pyusd","rlusd","tusd","usdp","frax","lusd","usdd","susd","xaut","paxg","gho","aeur","bnb","okb","cro","leo","kcs","bgb","wbt","ht","htx","nexo"];
 var SECTOR_MAP = {bitcoin:"Layer 1",ethereum:"Layer 1",solana:"Layer 1",tron:"Layer 1",cardano:"Layer 1",avalanche:"Layer 1",polkadot:"Layer 1",cosmos:"Layer 1",near:"Layer 1",sui:"Layer 1",aptos:"Layer 1",uniswap:"DEX",hyperliquid:"DEX",jupiter:"DEX",lido:"DeFi",aave:"DeFi",chainlink:"Infrastructure",filecoin:"DePIN",render:"DePIN","the-graph":"AI",fetch:"AI",worldcoin:"AI",injective:"DeFi",arbitrum:"Layer 2",optimism:"Layer 2",polygon:"Layer 2",starknet:"Layer 2",monero:"Privacy",zcash:"Privacy","axie-infinity":"Gaming","immutable-x":"Gaming",ondo:"RWA",maker:"DeFi","lido-dao":"DeFi"};
 var state = {coins:[], filtered:[], sector:"All", query:"", mcap:"all", selected:null, watchlist:[]};
 try{ state.watchlist = JSON.parse(localStorage.getItem("crypto-dash-watchlist")||"[]"); }catch(e){ state.watchlist=[]; }
 function saveWatch(){ try{ localStorage.setItem("crypto-dash-watchlist", JSON.stringify(state.watchlist)); }catch(e){} }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function fmtUsd(n){ if(n==null||isNaN(n)) return "UNKNOWN"; if(n>=1e9) return "$"+(n/1e9).toFixed(2)+"B"; if(n>=1e6) return "$"+(n/1e6).toFixed(1)+"M"; if(n>=1e3) return "$"+(n/1e3).toFixed(1)+"K"; return "$"+Number(n).toFixed(2); }
-function clamp(x,a,b){ return Math.max(a,Math.min(b,x)); }
-/* Criteria-audited fallback scoring, used ONLY if data.json is missing.
-   Same rules as scripts/refresh-data.js: UNKNOWN = 0 (capped, not rescaled).
-   No flat placeholders: catalysts, moat, and security are UNKNOWN because
-   the free feeds carry no data for them; product is 6 only on a categorised
-   live DefiLlama protocol; value accrual is capped at 6 on revenue alone,
-   12 only for Lighter documented buybacks. Browser fallback has no revenue
-   feed, so revenue, value accrual, and flywheel are UNKNOWN there — the
-   scheduled data.json is the primary source, and fallback scores will
-   therefore be lower and capped. No score is copied from any earlier version. */
-var VALUE_ACCRUAL_KNOWN = {lighter:12};
-function volTier(v){ if(v==null) return null; if(v>=1e10) return 5; if(v>=1e9) return 4; if(v>=1e8) return 3; if(v>=1e7) return 2; if(v>0) return 1; return null; }
-function tvlTier(t){ if(t==null) return null; if(t>=1e9) return 5; if(t>=1e8) return 4; if(t>=1e7) return 3; if(t>=1e6) return 2; if(t>0) return 1; return null; }
-function scoreCoin(c, tvl){
-  var f = {};
-  f.revenue = tvl!=null && tvl.revenue24h!=null ? clamp(Math.round(15*Math.min(1, Math.log10(1+tvl.revenue24h)/6)),1,15) : null;
-  f.valueAccrual = VALUE_ACCRUAL_KNOWN[c.id]!=null ? VALUE_ACCRUAL_KNOWN[c.id] : (f.revenue!=null ? 6 : null);
-  var vt = volTier(c.total_volume!=null ? c.total_volume : null);
-  var tt = tvl!=null ? tvlTier(tvl.tvl) : null;
-  f.adoption = (vt==null && tt==null) ? null : Math.min(10, (vt||0)+(tt||0));
-  f.product = (tvl!=null && tvl.category) ? 6 : null;
-  f.flywheel = (f.revenue!=null && (c.total_volume>0 || (tvl!=null && tvl.tvl>0))) ? 6 : null;
-  f.tokenomics = (c.circulating_supply!=null && c.total_supply!=null && c.total_supply>0) ? clamp(Math.round(10*(c.circulating_supply/c.total_supply)),1,10) : null;
-  if(c.market_cap!=null && c.fully_diluted_valuation!=null && c.fully_diluted_valuation>0){
-    var r = c.fully_diluted_valuation/c.market_cap;
-    f.valuation = r<=1.1 ? 6 : r<=2 ? 4 : r<=5 ? 2 : 1;
-  } else { f.valuation = null; }
-  f.catalysts = null; f.moat = null; f.security = null;
-  if(c.market_cap!=null && c.fully_diluted_valuation!=null && c.market_cap>0){
-    var rr = c.fully_diluted_valuation/c.market_cap;
-    f.risk = rr<=1.5 ? 5 : rr<=3 ? 4 : 3;
-  } else { f.risk = null; }
-  var total = 0, known = 0;
-  Object.keys(WEIGHTS).forEach(function(k){ if(f[k]!=null){ total+=f[k]; known++; } });
-  var evidence = known/11;
-  return {factors:f, score:total, evidence:evidence, known:known};
-}
+/* Scores come only from data.json (written by scripts/refresh-data.js).
+   There is deliberately no client-side scorer: the browser has no revenue
+   feed, so a live re-score could never reproduce the data.json scores
+   (revenue and flywheel are unknowable in the browser) and the old
+   symbol-only matching reintroduced wrong scores — memecoins inheriting
+   strangers' TVL/category, Layer-1s getting bridge numbers instead of
+   chain TVL, and no HYPE buyback credit. Refresh reloads data.json. */
 
 function frameworkFor(s){
   function statusFor(v, w){
@@ -333,11 +300,11 @@ async function loadReddit(){
   }
   document.getElementById("xBody").innerHTML = '<p><b>X Buzz — linked only.</b> X has no free post feed, so no tweets are pulled or shown here. Use the links in a token detail view to open the live X profile and discussion.</p><p><a href="https://x.com/search?q=crypto" target="_blank" rel="noopener">Open live crypto discussion on X →</a></p>';
 }
-/* Scheduled data first: data.json is written hourly by GitHub Actions
+/* Scheduled data only: data.json is written hourly by GitHub Actions
    (a server-side runner), with full CoinGecko + DefiLlama data including
-   protocol revenue. The page reads it first; live browser fetches are only
-   a fallback if data.json is missing, and will show lower capped scores
-   because browser-only DefiLlama data has no revenue field. */
+   protocol revenue. The page reads it on every Refresh. There is no live
+   browser re-scoring — the browser has no revenue feed, so a live
+   re-score could never reproduce these scores. */
 async function loadFromDataJson(){
   var url = "data.json" + (window.location.protocol === "file:" ? "" : "?t=" + Date.now());
   var r = await fetch(url, {cache:"no-store"});
@@ -358,45 +325,14 @@ async function loadFromDataJson(){
 async function refresh(){
   document.getElementById("status").textContent="Refreshing data…";
   document.getElementById("errorBox").innerHTML="";
-  try{ await loadFromDataJson(); return; }catch(e){ /* fall through to live browser fetch */ }
-  document.getElementById("status").textContent="Scheduled data not available — trying live browser data…";
-  await liveRefresh();
-}
-async function liveRefresh(){
   try{
-    var cg = await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h");
-    if(!cg.ok) throw new Error("CoinGecko returned "+cg.status+". Please try Refresh again shortly.");
-    var coins = await cg.json();
-    var dl = null;
-    try{
-      var dr = await fetch("https://api.defillama.com/protocols");
-      if(dr.ok) dl = await dr.json();
-    }catch(e){ dl=null; }
-    var bySym = {};
-    if(Array.isArray(dl)){
-      dl.forEach(function(p){
-        var k=(p.symbol||"").toLowerCase();
-        if(k && !bySym[k]) bySym[k]={tvl:p.tvl||null, revenue24h:null, name:p.name||""};
-      });
-    }
-    var now = new Date();
-    var scored = [];
-    coins.forEach(function(c){
-      var sym=(c.symbol||"").toLowerCase();
-      if(EXCLUDED_IDS.indexOf(c.id)>=0 || EXCLUDED_SYMS.indexOf(sym)>=0) return;
-      if(c.id==="tether" || sym==="usdt") return;
-      var tvl = bySym[sym]||null;
-      /* Match by symbol is approximate for DefiLlama; TVL is shown only when a symbol match exists. */
-      c._score = scoreCoin(c, tvl);
-      c._tvl = tvl ? tvl.tvl : null;
-      scored.push(c);
-    });
-    scored.sort(function(a,b){ return b._score.score-a._score.score; });
-    state.coins = scored;
-    document.getElementById("status").textContent = "Live data updated.";
-    document.getElementById("updatedAt").textContent = "Last refreshed: "+now.toLocaleString()+" · Sources: CoinGecko, DefiLlama, Reddit, X links.";
-    render(); loadReddit();
+    await loadFromDataJson();
   }catch(e){
+    /* Scores come only from the scheduled data.json. There is no live
+       browser re-scoring: the browser has no revenue feed, so a live
+       re-score could never reproduce the data.json scores and would
+       reintroduce the wrong symbol matches and missing chain TVL.
+       Keep the previous data and ask the user to try again. */
     document.getElementById("errorBox").innerHTML='<div class="err">'+esc(e.message||"Refresh failed. Please try again.")+'</div>';
     document.getElementById("status").textContent="Refresh failed — previous data (if any) is still shown.";
   }

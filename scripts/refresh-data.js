@@ -27,12 +27,14 @@
  *
  *   Value accrual (15): NEVER assumed. If revenue is present but no
  *     verified holder mechanism is in the data pulled, score is CAPPED at
- *     6/15. Only Lighter is scored 12/15, on documented LIT buybacks
- *     (prior Crypto Dash research; a verified buyback mechanism, not an
- *     assumption). No revenue and no mechanism -> UNKNOWN.
+ *     6/15. Only Lighter and Hyperliquid are scored 12/15, on documented
+ *     buybacks (LIT buybacks; HYPE Assistance Fund buybacks — the Fund
+ *     directs ~97-99% of Hyperliquid trading fees to open-market HYPE
+ *     buybacks). No revenue and no mechanism -> UNKNOWN.
  *     (Old placeholders removed: hyperliquid 12, uniswap 8, lido 8, and
  *     flat 6 whenever TVL existed, none of which were verified in the
- *     data pulled.)
+ *     data pulled. Hyperliquid 12 was restored as a verified buyback,
+ *     not a placeholder.)
  *
  *   Adoption (10): 24h trading volume + TVL, both real activity signals.
  *     Volume tier: >=$10B -> 5, >=$1B -> 4, >=$100M -> 3, >=$10M -> 2,
@@ -41,6 +43,12 @@
  *     Volume alone is a proxy for adoption, not a user count — the note
  *     in the output says so. (Old placeholder removed: log10(market cap)
  *     alone. Market cap is not adoption.)
+ *     Layer-1 chains use their DefiLlama chain TVL (/v2/chains) for the
+ *     TVL tier, not the bridge / foundation protocol row they are matched
+ *     to (whose TVL is usually null). Memecoins with no DefiLlama
+ *     protocol of their own (dogwifhat, Bonk, Shiba Inu) are left
+ *     unmatched rather than matched by ticker symbol to an unrelated
+ *     project — their revenue / product / TVL are UNKNOWN.
  *
  *   Product utility (10): 6 ONLY if DefiLlama lists a categorised live
  *     protocol for this token (category present). Capped at 6 because
@@ -114,9 +122,25 @@ const EXCLUDED_SYMS = ["usdt", "usdc", "dai", "usde", "fdusd", "pyusd", "rlusd",
 
 const SECTOR_MAP = { bitcoin: "Layer 1", ethereum: "Layer 1", solana: "Layer 1", tron: "Layer 1", cardano: "Layer 1", avalanche: "Layer 1", polkadot: "Layer 1", cosmos: "Layer 1", near: "Layer 1", sui: "Layer 1", aptos: "Layer 1", uniswap: "DEX", hyperliquid: "DEX", jupiter: "DEX", lido: "DeFi", aave: "DeFi", chainlink: "Infrastructure", filecoin: "DePIN", render: "DePIN", "the-graph": "AI", fetch: "AI", worldcoin: "AI", injective: "DeFi", arbitrum: "Layer 2", optimism: "Layer 2", polygon: "Layer 2", starknet: "Layer 2", monero: "Privacy", zcash: "Privacy", "axie-infinity": "Gaming", "immutable-x": "Gaming", ondo: "RWA", maker: "DeFi", "lido-dao": "DeFi" };
 
-// ONLY verified holder mechanism kept: Lighter, documented LIT buybacks.
-// Every other revenue-present token is capped at 6, never assumed higher.
-const VALUE_ACCRUAL_KNOWN = { lighter: 12 };
+// ONLY verified holder mechanisms kept: Lighter (documented LIT buybacks)
+// and Hyperliquid (Assistance Fund directs ~97-99% of trading fees to
+// open-market HYPE buybacks, ~48M HYPE bought). Every other
+// revenue-present token is capped at 6, never assumed higher.
+const VALUE_ACCRUAL_KNOWN = { lighter: 12, hyperliquid: 12 };
+
+// Symbol fallback is unsafe for these tokens: their tickers collide with
+// unrelated DefiLlama protocols, so a memecoin would inherit a stranger's
+// revenue / TVL / category. WIF -> "World is Flat" (Onchain Voting),
+// BONK -> "Bonk Staked SOL" (liquid staking), SHIB -> "Shibex" (a DEX).
+// They have no DefiLlama protocol of their own, so they must stay
+// unmatched (revenue / product / TVL = null).
+const NO_SYMBOL_FALLBACK_IDS = new Set(["dogwifcoin", "bonk", "shiba-inu"]);
+
+// Layer-1 chains whose DefiLlama chain TVL (not a bridge / foundation /
+// treasury protocol row) is the real adoption signal. SECTOR_MAP calls
+// most of these "Layer 1"; avalanche-2 is listed explicitly because its
+// CoinGecko id is not the SECTOR_MAP key ("avalanche").
+const L1_CHAIN_IDS = new Set(["bitcoin", "ethereum", "solana", "tron", "cardano", "avalanche-2", "polkadot", "cosmos", "near", "sui", "aptos"]);
 
 function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
 
@@ -139,7 +163,7 @@ function tvlTier(t) {
   return null;
 }
 
-function scoreCoin(c, tvl, revenue) {
+function scoreCoin(c, tvl, revenue, chainTvl) {
   const f = {};
   // Revenue presence requires revenue > $0 in the last day OR the last
   // 30 days. A DefiLlama row with $0/$0 (e.g. Bitcoin) is NOT revenue —
@@ -158,8 +182,12 @@ function scoreCoin(c, tvl, revenue) {
   f.valueAccrual = VALUE_ACCRUAL_KNOWN[c.id] != null ? VALUE_ACCRUAL_KNOWN[c.id]
     : (effDaily != null ? 6 : null);
   // Adoption: volume tier + TVL tier, capped at 10; neither -> UNKNOWN.
+  // For Layer-1 chains the TVL tier uses the chain's real TVL
+  // (DefiLlama /v2/chains), not the bridge / foundation protocol row
+  // the token is matched to (whose TVL is usually null). Product and
+  // flywheel still use the protocol match.
   const vt = volumeTier(c.total_volume != null ? c.total_volume : null);
-  const tt = tvl != null ? tvlTier(tvl.tvl) : null;
+  const tt = chainTvl != null ? tvlTier(chainTvl) : (tvl != null ? tvlTier(tvl.tvl) : null);
   f.adoption = (vt == null && tt == null) ? null : Math.min(10, (vt || 0) + (tt || 0));
   // Product: 6 only on a categorised live DefiLlama protocol, else UNKNOWN.
   f.product = (tvl != null && tvl.category) ? 6 : null;
@@ -294,12 +322,38 @@ async function main() {
     }
   } catch (e) { errors.push(`DefiLlama revenue overview failed: ${e.message}`); }
 
+  // Layer-1 chain TVL (DefiLlama /v2/chains), keyed by the chain's
+  // CoinGecko id. Used only for the adoption TVL tier of Layer-1
+  // tokens (Fix 2); revenue / product / category still come from the
+  // protocol match. A failed fetch is recorded, not fatal — those
+  // tokens simply fall back to their protocol TVL.
+  const chainTvlByGecko = new Map();
+  try {
+    const chains = await fetchJson("https://api.llama.fi/v2/chains");
+    if (Array.isArray(chains)) {
+      for (const ch of chains) {
+        if (ch.gecko_id && ch.tvl != null) {
+          const cur = chainTvlByGecko.get(ch.gecko_id);
+          if (cur == null || ch.tvl > cur) chainTvlByGecko.set(ch.gecko_id, ch.tvl);
+        }
+      }
+    }
+  } catch (e) { errors.push(`DefiLlama /v2/chains failed: ${e.message}`); }
+
   const scored = [];
   let excluded = 0;
   for (const c of coins) {
     const sym = (c.symbol || "").toLowerCase();
     if (EXCLUDED_IDS.includes(c.id) || EXCLUDED_SYMS.includes(sym) || c.id === "tether" || sym === "usdt") { excluded++; continue; }
-    const tvl = tvlByGecko.get(c.id) || tvlBySymbol.get(sym) || null;
+    const tvl = tvlByGecko.get(c.id) || (NO_SYMBOL_FALLBACK_IDS.has(c.id) ? null : tvlBySymbol.get(sym)) || null;
+    // Layer-1 chain TVL for the adoption tier (Fix 2). Only when the
+    // token is a Layer-1 chain and the chains endpoint has its TVL;
+    // otherwise the protocol TVL stands (e.g. Polkadot has no chain
+    // entry in /v2/chains, so it keeps its protocol match).
+    const sector = SECTOR_MAP[c.id] || "Other";
+    const chainTvl = (sector === "Layer 1" || L1_CHAIN_IDS.has(c.id))
+      ? (chainTvlByGecko.get(c.id) != null ? chainTvlByGecko.get(c.id) : null)
+      : null;
     let revenue = familyRevenue(c.id, revenueBySlug);
     let revenueSource = revenue ? revenue.revenueSource : null;
     if (!revenue && tvl && tvl.slug) {
@@ -311,9 +365,15 @@ async function main() {
       revenue = { revenue24h: r.revenue24h, revenue7d: r.revenue7d, revenue30d: r.revenue30d, revenueSource: "direct" };
       revenueSource = "direct";
     }
+    // Blocklisted memecoins have no protocol revenue of their own. The
+    // family lookup above prefix-matches slugs, so "bonk" would still
+    // pull in "bonk-staked-sol" revenue even with the TVL match blocked.
+    // Force revenue to null for these three so no factor is fed by a
+    // stranger's project.
+    if (NO_SYMBOL_FALLBACK_IDS.has(c.id)) { revenue = null; revenueSource = null; }
     // CoinGecko markets response uses total_volume, not volume24h.
     const coinForScoring = Object.assign({}, c, { total_volume: c.total_volume });
-    const score = scoreCoin(coinForScoring, tvl, revenue);
+    const score = scoreCoin(coinForScoring, tvl, revenue, chainTvl);
     scored.push({
       id: c.id,
       name: c.name,
@@ -325,8 +385,8 @@ async function main() {
       circulating_supply: c.circulating_supply != null ? c.circulating_supply : null,
       total_supply: c.total_supply != null ? c.total_supply : null,
       price_change_percentage_24h: c.price_change_percentage_24h != null ? c.price_change_percentage_24h : null,
-      sector: SECTOR_MAP[c.id] || "Other",
-      tvl: tvl ? tvl.tvl : null,
+      sector,
+      tvl: chainTvl != null ? chainTvl : (tvl ? tvl.tvl : null),
       defillama_slug: tvl ? tvl.slug : null,
       defillama_category: tvl ? tvl.category : null,
       twitter: tvl ? tvl.twitter : null,
@@ -347,10 +407,11 @@ async function main() {
       { name: "CoinGecko", url: "https://api.coingecko.com/api/v3/coins/markets", fetchedAt: generatedAt, note: "Prices, market cap, FDV, supplies, logos, 24h volume." },
       { name: "DefiLlama", url: "https://api.llama.fi/protocols", fetchedAt: generatedAt, note: "TVL, protocol slug, category (product utility requires a categorised live protocol)." },
       { name: "DefiLlama", url: "https://api.llama.fi/overview/fees?dataType=dailyRevenue", fetchedAt: generatedAt, note: "Protocol revenue (dailyRevenue). Fees are NOT revenue and are not used as revenue." },
+      { name: "DefiLlama", url: "https://api.llama.fi/v2/chains", fetchedAt: generatedAt, note: "Chain TVL for Layer-1 tokens (adoption TVL tier only); revenue, product, and category still come from the protocol match." },
     ],
-    counts: { coingeckoFetched: coins.length, excluded, defillamaProtocols: Array.isArray(protocols) ? protocols.length : 0, defillamaRevenueRows: revenueCount, scored: scored.length, included: assets.length },
+    counts: { coingeckoFetched: coins.length, excluded, defillamaProtocols: Array.isArray(protocols) ? protocols.length : 0, defillamaRevenueRows: revenueCount, defillamaChains: chainTvlByGecko.size, scored: scored.length, included: assets.length },
     errors,
-    factorMethod: "Weights sum to 100; UNKNOWN = 0 points (capped, not rescaled). Catalysts, moat, and security are UNKNOWN for all coins in this run because the free feeds carry no data for them. Value accrual is capped at 6 on revenue alone, 12 only for Lighter documented buybacks. Adoption is volume tier + TVL tier. Product is 6 only on a categorised live DefiLlama protocol. Valuation uses a revenue multiple when revenue30d exists, else a dilution-capped score. No factor score is copied from any earlier version.",
+    factorMethod: "Weights sum to 100; UNKNOWN = 0 points (capped, not rescaled). Catalysts, moat, and security are UNKNOWN for all coins in this run because the free feeds carry no data for them. Value accrual is capped at 6 on revenue alone, 12 only for Lighter and Hyperliquid documented buybacks. Adoption is volume tier + TVL tier (Layer-1 chains use their DefiLlama chain TVL). Memecoins with no DefiLlama protocol of their own (dogwifhat, Bonk, Shiba Inu) are left unmatched rather than matched by ticker symbol to an unrelated project. Product is 6 only on a categorised live DefiLlama protocol. Valuation uses a revenue multiple when revenue30d exists, else a dilution-capped score. No factor score is copied from any earlier version.",
     assets,
   };
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
